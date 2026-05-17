@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Pelacakan Status Paket Logistik</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .drop-active { border-color: #2563eb !important; background-color: #eff6ff !important; }
+        .upload-loaded { border-color: #16a34a !important; background-color: #f0fdf4 !important; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-blue-600 text-white shadow-md">
+        <div class="container mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2.5 bg-white/10 rounded-lg">
+                    <i data-lucide="package-search" class="w-8 h-8 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">LogiTrack Helper</h1>
+                    <p class="text-xs text-blue-100">Asisten Operator - Pembagi & Pemroses Dokumen Paket</p>
+                </div>
+            </div>
+            <div class="text-right text-xs text-blue-100">
+                <p id="current-date-display"></p>
+                <p>Status Kerja: Aktif</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow container mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Panel Kiri -->
+        <div class="lg:col-span-4 flex flex-col gap-6">
+
+            <!-- Box 1: Upload File MRK -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                <div class="flex items-center gap-2 mb-3">
+                    <i data-lucide="package" class="text-blue-500 w-5 h-5"></i>
+                    <h2 class="text-md font-semibold text-gray-700">1. Upload File Paket MRK</h2>
+                </div>
+                <p class="text-xs text-gray-500 mb-3">
+                    Upload file Excel atau CSV berisi data paket yang baru masuk hub (status MRK).
+                </p>
+
+                <!-- Drop Zone MRK -->
+                <div 
+                    id="drop-mrk"
+                    class="border-2 border-dashed border-gray-300 rounded-lg p-5 text-center cursor-pointer transition-all relative"
+                    ondragover="onDrag(event,'mrk')" ondragleave="offDrag('mrk')" ondrop="onDrop(event,'mrk')"
+                    onclick="document.getElementById('file-mrk').click()"
+                >
+                    <input type="file" id="file-mrk" class="hidden" accept=".xlsx,.xls,.csv" onchange="loadFile(this,'mrk')">
+                    <div id="drop-mrk-icon">
+                        <i data-lucide="upload-cloud" class="w-10 h-10 text-gray-300 mx-auto mb-2"></i>
+                        <p class="text-sm font-semibold text-gray-500">Klik atau seret file ke sini</p>
+                        <p class="text-xs text-gray-400 mt-1">Excel (.xlsx, .xls) atau CSV</p>
+                    </div>
+                    <div id="drop-mrk-loaded" class="hidden">
+                        <i data-lucide="check-circle" class="w-10 h-10 text-green-500 mx-auto mb-2"></i>
+                        <p class="text-sm font-semibold text-green-700" id="mrk-filename">-</p>
+                        <p class="text-xs text-green-600 mt-1" id="mrk-rowcount">0 baris dimuat</p>
+                    </div>
+                </div>
+
+                <div class="mt-3 flex justify-between items-center">
+                    <span class="text-xs text-gray-400" id="mrk-status-msg"></span>
+                    <button onclick="resetFile('mrk')" class="text-xs text-red-500 hover:text-red-700 font-medium hidden" id="btn-reset-mrk">
+                        Hapus File
+                    </button>
+                </div>
+            </div>
+
+            <!-- Box 2: Upload File Setting Hari Ini -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                <div class="flex items-center gap-2 mb-3">
+                    <i data-lucide="settings" class="text-amber-500 w-5 h-5"></i>
+                    <h2 class="text-md font-semibold text-gray-700">2. Upload Setting Hari Ini</h2>
+                </div>
+                <p class="text-xs text-gray-500 mb-3">
+                    Upload file setting harian berisi kode status paket yang akan diproses keluar hari ini.
+                </p>
+
+                <!-- Drop Zone Setting -->
+                <div 
+                    id="drop-setting"
+                    class="border-2 border-dashed border-gray-300 rounded-lg p-5 text-center cursor-pointer transition-all relative"
+                    ondragover="onDrag(event,'setting')" ondragleave="offDrag('setting')" ondrop="onDrop(event,'setting')"
+                    onclick="document.getElementById('file-setting').click()"
+                >
+                    <input type="file" id="file-setting" class="hidden" accept=".xlsx,.xls,.csv" onchange="loadFile(this,'setting')">
+                    <div id="drop-setting-icon">
+                        <i data-lucide="upload-cloud" class="w-10 h-10 text-gray-300 mx-auto mb-2"></i>
+                        <p class="text-sm font-semibold text-gray-500">Klik atau seret file ke sini</p>
+                        <p class="text-xs text-gray-400 mt-1">Excel (.xlsx, .xls) atau CSV</p>
+                    </div>
+                    <div id="drop-setting-loaded" class="hidden">
+                        <i data-lucide="check-circle" class="w-10 h-10 text-amber-500 mx-auto mb-2"></i>
+                        <p class="text-sm font-semibold text-amber-700" id="setting-filename">-</p>
+                        <p class="text-xs text-amber-600 mt-1" id="setting-rowcount">0 kode dimuat</p>
+                    </div>
+                </div>
+
+                <div class="mt-3 flex justify-between items-center">
+                    <span class="text-xs text-gray-400" id="setting-status-msg"></span>
+                    <button onclick="resetFile('setting')" class="text-xs text-red-500 hover:text-red-700 font-medium hidden" id="btn-reset-setting">
+                        Hapus File
+                    </button>
+                </div>
+
+                <!-- Preview kode aktif -->
+                <div id="setting-preview" class="hidden mt-3 pt-3 border-t border-gray-100">
+                    <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Kode Aktif Hari Ini:</p>
+                    <div id="kode-chips" class="flex flex-wrap gap-1.5"></div>
+                </div>
+            </div>
+
+            <!-- Box 3: Tombol Proses & Filter Manual -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="bg-gray-100 px-5 py-3 border-b border-gray-200 flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="sliders-horizontal" class="text-gray-600 w-4 h-4"></i>
+                        <span class="text-sm font-semibold text-gray-700">Track Status</span>
+                    </div>
+                    <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-mono font-bold" id="active-filters-count">0 Terpilih</span>
+                </div>
+
+                <div class="p-5">
+                    <!-- Tombol Proses Utama -->
+                    <button 
+                        id="btn-proses"
+                        onclick="prosesData()" 
+                        disabled
+                        class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-semibold py-3 px-4 rounded-lg transition flex items-center justify-center gap-2 mb-4"
+                    >
+                        <i data-lucide="play" class="w-4 h-4"></i> Proses & Filter Paket
+                    </button>
+
+                    <!-- Check All / Un-Check All -->
+                    <div class="grid grid-cols-2 gap-2 mb-4">
+                        <button onclick="setAllCheckboxes(true)" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-semibold py-1.5 px-3 rounded transition flex items-center justify-center gap-1">
+                            <i data-lucide="check-square" class="w-3.5 h-3.5"></i> Check All
+                        </button>
+                        <button onclick="setAllCheckboxes(false)" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-semibold py-1.5 px-3 rounded transition flex items-center justify-center gap-1">
+                            <i data-lucide="square" class="w-3.5 h-3.5"></i> Un-Check All
+                        </button>
+                    </div>
+
+                    <!-- Grid Checkbox Status -->
+                    <div class="grid grid-cols-2 gap-y-3 gap-x-4 bg-gray-50 p-4 rounded-lg border border-gray-100" id="status-checkboxes-container"></div>
+
+                    <div class="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center gap-3">
+                        <button onclick="resetFilters()" class="px-4 py-2 border border-gray-300 rounded text-xs font-semibold text-gray-600 hover:bg-gray-50 transition">
+                            Batal
+                        </button>
+                        <button onclick="applyFilters()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold transition shadow-sm flex items-center gap-1">
+                            Pilih (Terapkan) <i data-lucide="chevron-right" class="w-3 h-3"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Box 4: Filter Tambahan -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                <div class="flex flex-col gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nama e-Commerce / Layanan</label>
+                        <select id="filter-ecommerce" onchange="applyFilters()" class="w-full text-xs p-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500">
+                            <option value="ALL">-- Semua Layanan/e-Com --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tipe Seller</label>
+                        <select id="filter-seller-type" onchange="applyFilters()" class="w-full text-xs p-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500">
+                            <option value="ALL">-- Semua Kategori Seller --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Urut Berdasarkan</label>
+                        <select id="sort-by" onchange="applyFilters()" class="w-full text-xs p-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 font-semibold text-blue-700 bg-blue-50/50">
+                            <option value="lama-desc">Lama Hari di Toko (Paling Lama)</option>
+                            <option value="lama-asc">Lama Hari di Toko (Paling Baru)</option>
+                            <option value="status">Status (A - Z)</option>
+                            <option value="toko">Nama Toko (A - Z)</option>
+                            <option value="tanggal">Tanggal Status</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Panel Kanan -->
+        <div class="lg:col-span-8 flex flex-col gap-6">
+
+            <!-- Statistik -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center gap-3">
+                    <div class="p-2 bg-blue-100 text-blue-600 rounded-lg"><i data-lucide="layers" class="w-6 h-6"></i></div>
+                    <div><span class="block text-xs text-gray-400">Total Paket</span><strong class="text-lg text-gray-700" id="stat-total">0</strong></div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center gap-3">
+                    <div class="p-2 bg-green-100 text-green-600 rounded-lg"><i data-lucide="check-circle" class="w-6 h-6"></i></div>
+                    <div><span class="block text-xs text-gray-400">Lolos Filter</span><strong class="text-lg text-gray-700" id="stat-filtered">0</strong></div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center gap-3">
+                    <div class="p-2 bg-amber-100 text-amber-600 rounded-lg"><i data-lucide="clock" class="w-6 h-6"></i></div>
+                    <div><span class="block text-xs text-gray-400">Rata-rata Hari</span><strong class="text-lg text-gray-700" id="stat-avg-days">0</strong></div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center gap-3">
+                    <div class="p-2 bg-purple-100 text-purple-600 rounded-lg"><i data-lucide="store" class="w-6 h-6"></i></div>
+                    <div><span class="block text-xs text-gray-400">Jumlah Toko</span><strong class="text-lg text-gray-700" id="stat-stores">0</strong></div>
+                </div>
+            </div>
+
+            <!-- Tabel Hasil -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-grow flex flex-col">
+
+                <div class="p-4 bg-gray-50 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-semibold text-gray-700">Daftar Hasil Pembagian Paket</span>
+                        <span class="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full font-semibold" id="table-count">0 Baris</span>
+                    </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <div class="relative flex-grow sm:flex-grow-0">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                                <i data-lucide="search" class="w-4 h-4"></i>
+                            </span>
+                            <input type="text" id="search-bar" oninput="applyFilters()" placeholder="Cari Toko / No AWB..." 
+                                class="w-full sm:w-60 pl-9 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <button onclick="exportToClipboard()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-1.5 px-3 rounded-lg transition flex items-center gap-1" title="Salin ke Excel">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i> Salin ke Excel
+                        </button>
+                        <button onclick="exportExcel()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-1.5 px-3 rounded-lg transition flex items-center gap-1" title="Download Excel">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i> Download
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Toast -->
+                <div id="toast" class="hidden mx-4 my-2 p-2 bg-green-50 text-green-800 text-xs rounded border border-green-200 text-center font-medium"></div>
+
+                <!-- Distribusi Visual -->
+                <div id="distribution-visual" class="p-4 bg-blue-50/50 border-b border-gray-100 flex flex-wrap gap-2 items-center">
+                    <span class="text-xs font-bold text-gray-500 uppercase mr-1">Grup Pembagian Aktif:</span>
+                    <span class="text-xs text-gray-400 italic">Silakan upload file untuk melihat sebaran paket</span>
+                </div>
+
+                <!-- Tabel -->
+                <div class="overflow-x-auto flex-grow max-h-[500px]">
+                    <table class="min-w-full text-left border-collapse" id="data-table">
+                        <thead>
+                            <tr class="bg-gray-100 text-gray-600 text-xs font-semibold tracking-wider sticky top-0 border-b border-gray-200 z-10">
+                                <th class="px-4 py-3">Status</th>
+                                <th class="px-4 py-3">Lama (Hari)</th>
+                                <th class="px-4 py-3">Kategori Seller</th>
+                                <th class="px-4 py-3">Layanan</th>
+                                <th class="px-4 py-3">Kode/Nama DC</th>
+                                <th class="px-4 py-3">Nama Toko</th>
+                                <th class="px-4 py-3">AS/AM</th>
+                                <th class="px-4 py-3">No. AWB (Resi)</th>
+                                <th class="px-4 py-3">Tanggal Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body" class="text-xs divide-y divide-gray-100">
+                            <tr>
+                                <td colspan="9" class="px-4 py-10 text-center text-gray-400">
+                                    <div class="flex flex-col items-center justify-center gap-2">
+                                        <i data-lucide="table-2" class="w-10 h-10 text-gray-300"></i>
+                                        <p class="font-medium">Belum ada data untuk ditampilkan</p>
+                                        <p class="text-xs text-gray-400 max-w-sm">Upload file MRK dan file Setting, lalu klik <strong>Proses & Filter Paket</strong>.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-gray-800 text-gray-400 text-xs py-4 text-center border-t border-gray-700">
+        <p>© 2026 Operator Logistics Hub · Indopaket · Dirancang untuk efisiensi pembagian dokumen harian</p>
+    </footer>
+
+    <script>
+        // ===== STATE =====
+        let rawDataList = [];
+        let filteredDataList = [];
+        let settingKodes = new Set();
+        let fileMRKLoaded = false;
+        let fileSettingLoaded = false;
+
+        const availableStatuses = ['TPK','KTO','KHB','KDC','MMD','MTO','RET','KBP','KAP','KHE','3KP','KKP','3RT'];
+        const defaultChecked = ['KDC','KBP'];
+
+        // ===== INIT =====
+        document.getElementById('current-date-display').innerText =
+            `Hari ini: ${new Date().toLocaleDateString('id-ID',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}`;
+
+        window.onload = function() {
+            lucide.createIcons();
+            generateStatusCheckboxes();
+            defaultChecked.forEach(s => {
+                const el = document.getElementById(`chk-${s}`);
+                if (el) el.checked = true;
+            });
+            updateFilterCount();
+        };
+
+        // ===== DRAG & DROP =====
+        function onDrag(e, type) {
+            e.preventDefault();
+            document.getElementById('drop-' + type).classList.add('drop-active');
+        }
+        function offDrag(type) {
+            document.getElementById('drop-' + type).classList.remove('drop-active');
+        }
+        function onDrop(e, type) {
+            e.preventDefault();
+            offDrag(type);
+            const file = e.dataTransfer.files[0];
+            if (file) prosesFileInput(file, type);
+        }
+
+        // ===== LOAD FILE =====
+        function loadFile(input, type) {
+            const file = input.files[0];
+            if (!file) return;
+            prosesFileInput(file, type);
+        }
+
+        function prosesFileInput(file, type) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const wb = XLSX.read(data, { type: 'array' });
+                    const ws = wb.Sheets[wb.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+
+                    if (type === 'mrk') {
+                        handleMRKData(json, file.name);
+                    } else {
+                        handleSettingData(json, file.name);
+                    }
+                    lucide.createIcons();
+                } catch(err) {
+                    showToast('Gagal membaca file. Pastikan format Excel atau CSV yang valid.', 'error');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // ===== HANDLE MRK =====
+        function handleMRKData(json, filename) {
+            if (!json || json.length === 0) {
+                showToast('File MRK kosong atau tidak terbaca.', 'error');
+                return;
+            }
+
+            // Deteksi kolom secara otomatis
+            const keys = Object.keys(json[0]);
+            const findCol = (patterns) => keys.find(k => patterns.some(p => new RegExp(p,'i').test(k))) || null;
+
+            const colStatus  = findCol(['^status$','track.?status']);
+            const colLama    = findCol(['lama','hari','days']);
+            const colSeller  = findCol(['seller.*kat','kat.*seller','kategori']);
+            const colLayanan = findCol(['layanan','service','layer']);
+            const colKodeDC  = findCol(['kodedc','kode.?dc']);
+            const colNamaDC  = findCol(['namadc','nama.?dc']);
+            const colKodeToko= findCol(['kodetoko','kode.?toko']);
+            const colNamaToko= findCol(['namatoko','nama.?toko','toko']);
+            const colAS      = findCol(['^as$']);
+            const colAM      = findCol(['^am$']);
+            const colAWB     = findCol(['awb','resi','no.?resi']);
+            const colTgl     = findCol(['tanggal','tgl','date']);
+
+            rawDataList = json.map(row => ({
+                status:       String(row[colStatus]  || row[keys[0]]  || '').trim().toUpperCase(),
+                lama:         parseInt(row[colLama]  || row[keys[1]]  || 0) || 0,
+                sellerKategori: String(row[colSeller] || row[keys[2]] || '-').trim(),
+                layanan:      String(row[colLayanan] || row[keys[3]]  || '-').trim(),
+                kodeDC:       String(row[colKodeDC]  || row[keys[4]] || '-').trim(),
+                namaDC:       String(row[colNamaDC]  || row[keys[5]] || '-').trim(),
+                kodeToko:     String(row[colKodeToko]|| row[keys[6]] || '-').trim(),
+                namaToko:     String(row[colNamaToko]|| row[keys[7]] || '-').trim(),
+                asName:       String(row[colAS]      || row[keys[8]] || '-').trim(),
+                amName:       String(row[colAM]      || row[keys[9]] || '-').trim(),
+                awb:          String(row[colAWB]     || row[keys[10]]|| '-').trim(),
+                tanggal:      String(row[colTgl]     || row[keys[11]]|| '-').trim(),
+            })).filter(r => r.status || r.awb);
+
+            // Update UI
+            document.getElementById('drop-mrk-icon').classList.add('hidden');
+            document.getElementById('drop-mrk-loaded').classList.remove('hidden');
+            document.getElementById('mrk-filename').textContent = filename;
+            document.getElementById('mrk-rowcount').textContent = `${rawDataList.length.toLocaleString('id-ID')} baris dimuat`;
+            document.getElementById('drop-mrk').classList.add('upload-loaded');
+            document.getElementById('btn-reset-mrk').classList.remove('hidden');
+            fileMRKLoaded = true;
+
+            populateDropdownFilters();
+            cekSiapProses();
+            showToast(`✓ File MRK berhasil dimuat: ${rawDataList.length.toLocaleString('id-ID')} baris.`, 'success');
+        }
+
+        // ===== HANDLE SETTING =====
+        function handleSettingData(json, filename) {
+            if (!json || json.length === 0) {
+                showToast('File setting kosong atau tidak terbaca.', 'error');
+                return;
+            }
+
+            // Ambil semua nilai unik dari semua kolom sebagai kode setting
+            settingKodes = new Set();
+            json.forEach(row => {
+                Object.values(row).forEach(v => {
+                    const val = String(v).trim().toUpperCase();
+                    if (val && val !== 'STATUS' && val.length <= 6) settingKodes.add(val);
+                });
+            });
+
+            // Sync ke checkbox
+            availableStatuses.forEach(s => {
+                const el = document.getElementById(`chk-${s}`);
+                if (el) el.checked = settingKodes.has(s);
+            });
+            updateFilterCount();
+
+            // Preview chips
+            const chipsEl = document.getElementById('kode-chips');
+            chipsEl.innerHTML = [...settingKodes].map(k =>
+                `<span class="px-2 py-0.5 rounded text-[11px] font-bold font-mono ${availableStatuses.includes(k) ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-500'}">${k}</span>`
+            ).join('');
+            document.getElementById('setting-preview').classList.remove('hidden');
+
+            // Update UI
+            document.getElementById('drop-setting-icon').classList.add('hidden');
+            document.getElementById('drop-setting-loaded').classList.remove('hidden');
+            document.getElementById('setting-filename').textContent = filename;
+            document.getElementById('setting-rowcount').textContent = `${settingKodes.size} kode aktif ditemukan`;
+            document.getElementById('drop-setting').classList.add('upload-loaded');
+            document.getElementById('btn-reset-setting').classList.remove('hidden');
+            fileSettingLoaded = true;
+
+            cekSiapProses();
+            showToast(`✓ File setting berhasil dimuat: ${settingKodes.size} kode aktif.`, 'success');
+        }
+
+        // ===== CEK SIAP PROSES =====
+        function cekSiapProses() {
+            document.getElementById('btn-proses').disabled = !(fileMRKLoaded && fileSettingLoaded);
+        }
+
+        // ===== RESET FILE =====
+        function resetFile(type) {
+            if (type === 'mrk') {
+                rawDataList = []; fileMRKLoaded = false;
+                document.getElementById('file-mrk').value = '';
+                document.getElementById('drop-mrk-icon').classList.remove('hidden');
+                document.getElementById('drop-mrk-loaded').classList.add('hidden');
+                document.getElementById('drop-mrk').classList.remove('upload-loaded','drop-active');
+                document.getElementById('btn-reset-mrk').classList.add('hidden');
+            } else {
+                settingKodes = new Set(); fileSettingLoaded = false;
+                document.getElementById('file-setting').value = '';
+                document.getElementById('drop-setting-icon').classList.remove('hidden');
+                document.getElementById('drop-setting-loaded').classList.add('hidden');
+                document.getElementById('drop-setting').classList.remove('upload-loaded','drop-active');
+                document.getElementById('btn-reset-setting').classList.add('hidden');
+                document.getElementById('setting-preview').classList.add('hidden');
+            }
+            filteredDataList = [];
+            renderTable(); updateStatistics(); renderDistributionVisual();
+            cekSiapProses();
+            lucide.createIcons();
+        }
+
+        // ===== PROSES DATA =====
+        function prosesData() {
+            if (rawDataList.length === 0 || settingKodes.size === 0) {
+                showToast('Upload kedua file terlebih dahulu!', 'error');
+                return;
+            }
+            // Sync checkbox sesuai setting
+            availableStatuses.forEach(s => {
+                const el = document.getElementById(`chk-${s}`);
+                if (el) el.checked = settingKodes.has(s);
+            });
+            updateFilterCount();
+            applyFilters();
+            showToast(`✓ Filter selesai! ${filteredDataList.length} paket cocok dengan setting hari ini.`, 'success');
+        }
+
+        // ===== CHECKBOX =====
+        function generateStatusCheckboxes() {
+            const container = document.getElementById('status-checkboxes-container');
+            container.innerHTML = '';
+            availableStatuses.forEach(status => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center gap-2 hover:bg-gray-100 p-1.5 rounded transition cursor-pointer';
+                div.innerHTML = `
+                    <input type="checkbox" id="chk-${status}" value="${status}" onchange="updateFilterCount()"
+                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer">
+                    <label for="chk-${status}" class="text-xs font-bold text-gray-700 font-mono select-none cursor-pointer flex-grow">${status}</label>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function updateFilterCount() {
+            document.getElementById('active-filters-count').innerText = `${getSelectedStatuses().length} Terpilih`;
+        }
+
+        function getSelectedStatuses() {
+            return availableStatuses.filter(s => {
+                const el = document.getElementById(`chk-${s}`);
+                return el && el.checked;
+            });
+        }
+
+        function setAllCheckboxes(val) {
+            availableStatuses.forEach(s => {
+                const el = document.getElementById(`chk-${s}`);
+                if (el) el.checked = val;
+            });
+            updateFilterCount();
+            applyFilters();
+        }
+
+        function resetFilters() {
+            setAllCheckboxes(false);
+            document.getElementById('search-bar').value = '';
+            document.getElementById('filter-ecommerce').value = 'ALL';
+            document.getElementById('filter-seller-type').value = 'ALL';
+            applyFilters();
+        }
+
+        // ===== DROPDOWN FILTER =====
+        function populateDropdownFilters() {
+            const ecomSelect = document.getElementById('filter-ecommerce');
+            const sellerSelect = document.getElementById('filter-seller-type');
+            const uniqueEcom = [...new Set(rawDataList.map(i => i.layanan))].filter(x => x && x !== '-');
+            const uniqueSeller = [...new Set(rawDataList.map(i => i.sellerKategori))].filter(x => x && x !== '-');
+            ecomSelect.innerHTML = '<option value="ALL">-- Semua Layanan/e-Com --</option>';
+            sellerSelect.innerHTML = '<option value="ALL">-- Semua Kategori Seller --</option>';
+            uniqueEcom.forEach(e => ecomSelect.innerHTML += `<option value="${e}">${e}</option>`);
+            uniqueSeller.forEach(s => sellerSelect.innerHTML += `<option value="${s}">${s}</option>`);
+        }
+
+        // ===== APPLY FILTERS =====
+        function applyFilters() {
+            if (rawDataList.length === 0) return;
+            const selectedStatuses = getSelectedStatuses();
+            const selectedEcom = document.getElementById('filter-ecommerce').value;
+            const selectedSeller = document.getElementById('filter-seller-type').value;
+            const searchQuery = document.getElementById('search-bar').value.toLowerCase().trim();
+            const sortBy = document.getElementById('sort-by').value;
+
+            filteredDataList = rawDataList.filter(item => {
+                const matchStatus = selectedStatuses.length === 0 || selectedStatuses.includes(item.status);
+                const matchEcom = selectedEcom === 'ALL' || item.layanan === selectedEcom;
+                const matchSeller = selectedSeller === 'ALL' || item.sellerKategori === selectedSeller;
+                const matchSearch = searchQuery === '' ||
+                    item.namaToko.toLowerCase().includes(searchQuery) ||
+                    item.awb.toLowerCase().includes(searchQuery) ||
+                    item.kodeToko.toLowerCase().includes(searchQuery);
+                return matchStatus && matchEcom && matchSeller && matchSearch;
+            });
+
+            filteredDataList.sort((a, b) => {
+                if (sortBy === 'lama-desc') return b.lama - a.lama;
+                if (sortBy === 'lama-asc') return a.lama - b.lama;
+                if (sortBy === 'status') return a.status.localeCompare(b.status);
+                if (sortBy === 'toko') return a.namaToko.localeCompare(b.namaToko);
+                if (sortBy === 'tanggal') return b.tanggal.localeCompare(a.tanggal);
+                return 0;
+            });
+
+            renderTable();
+            updateStatistics();
+            renderDistributionVisual();
+        }
+
+        // ===== RENDER TABLE =====
+        function renderTable() {
+            const tableBody = document.getElementById('table-body');
+            document.getElementById('table-count').innerText = `${filteredDataList.length} Baris`;
+
+            if (filteredDataList.length === 0) {
+                tableBody.innerHTML = `
+                    <tr><td colspan="9" class="px-4 py-10 text-center text-gray-400">
+                        <div class="flex flex-col items-center gap-2">
+                            <i data-lucide="inbox" class="w-10 h-10 text-gray-300"></i>
+                            <p class="font-medium">Tidak ada paket cocok dengan filter aktif</p>
+                        </div>
+                    </td></tr>`;
+                lucide.createIcons();
+                return;
+            }
+
+            tableBody.innerHTML = '';
+            filteredDataList.forEach(item => {
+                let statusColor = 'bg-gray-100 text-gray-800';
+                if (item.status === 'KDC') statusColor = 'bg-emerald-100 text-emerald-800';
+                else if (item.status === 'KBP') statusColor = 'bg-blue-100 text-blue-800';
+                else if (item.status === 'RET') statusColor = 'bg-red-100 text-red-800';
+                else if (item.status === 'TPK') statusColor = 'bg-purple-100 text-purple-800';
+                else if (item.status === 'MRK') statusColor = 'bg-amber-100 text-amber-800';
+
+                const lamaClass = item.lama >= 3
+                    ? 'text-orange-600 font-bold bg-orange-50 px-2 py-0.5 rounded border border-orange-100'
+                    : 'text-gray-700';
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50 border-b border-gray-100 transition';
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-mono font-bold">
+                        <span class="px-2 py-0.5 rounded text-[10px] ${statusColor}">${item.status}</span>
+                    </td>
+                    <td class="px-4 py-3"><span class="${lamaClass}">${item.lama} Hari</span></td>
+                    <td class="px-4 py-3 font-medium text-gray-600">${item.sellerKategori}</td>
+                    <td class="px-4 py-3 text-gray-500">${item.layanan}</td>
+                    <td class="px-4 py-3">
+                        <div class="font-semibold text-gray-700">${item.namaDC}</div>
+                        <div class="text-[10px] text-gray-400 font-mono">${item.kodeDC}</div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="font-bold text-gray-800">${item.namaToko}</div>
+                        <div class="text-[10px] text-blue-500 font-mono font-semibold">${item.kodeToko}</div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="text-xs font-semibold text-gray-700">AS: ${item.asName}</div>
+                        <div class="text-[10px] text-gray-400">AM: ${item.amName}</div>
+                    </td>
+                    <td class="px-4 py-3 font-mono text-gray-800 hover:text-blue-600 select-all cursor-pointer font-semibold">${item.awb}</td>
+                    <td class="px-4 py-3 text-gray-400 font-mono text-[10px]">${item.tanggal}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        // ===== DISTRIBUSI VISUAL =====
+        function renderDistributionVisual() {
+            const container = document.getElementById('distribution-visual');
+            if (filteredDataList.length === 0) {
+                container.innerHTML = `<span class="text-xs font-bold text-gray-500 uppercase mr-1">Grup Pembagian:</span><span class="text-xs text-gray-400 italic">Tidak ada sebaran paket</span>`;
+                return;
+            }
+            const counts = {};
+            filteredDataList.forEach(x => { counts[x.status] = (counts[x.status] || 0) + 1; });
+            container.innerHTML = `<span class="text-xs font-bold text-gray-500 uppercase mr-1">Grup Pembagian:</span>`;
+            Object.keys(counts).forEach(status => {
+                let color = 'bg-gray-200 text-gray-800';
+                if (status === 'KDC') color = 'bg-emerald-500 text-white';
+                else if (status === 'KBP') color = 'bg-blue-500 text-white';
+                else if (status === 'RET') color = 'bg-red-500 text-white';
+                else if (status === 'TPK') color = 'bg-purple-500 text-white';
+                else if (status === 'MRK') color = 'bg-amber-500 text-white';
+                container.innerHTML += `
+                    <div class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${color}">
+                        <span class="font-mono">${status}</span>
+                        <span class="bg-white/20 text-[10px] px-1.5 rounded-full">${counts[status]}</span>
+                    </div>`;
+            });
+        }
+
+        // ===== STATISTIK =====
+        function updateStatistics() {
+            const total = rawDataList.length;
+            const filtered = filteredDataList.length;
+            const sumDays = filteredDataList.reduce((acc, curr) => acc + curr.lama, 0);
+            const avgDays = filtered > 0 ? (sumDays / filtered).toFixed(1) : '0';
+            const uniqueStores = [...new Set(filteredDataList.map(i => i.kodeToko))].length;
+            document.getElementById('stat-total').innerText = total;
+            document.getElementById('stat-filtered').innerText = filtered;
+            document.getElementById('stat-avg-days').innerText = avgDays;
+            document.getElementById('stat-stores').innerText = uniqueStores;
+        }
+
+        // ===== EXPORT CLIPBOARD =====
+        function exportToClipboard() {
+            if (filteredDataList.length === 0) { showToast('Tidak ada data untuk disalin!', 'error'); return; }
+            let output = "Status\tLamaDiToko\tSellerKategori\tLayanan\tKodeDC\tNamaDC\tKodeToko\tNamaToko\tAS\tAM\tAWB\tTanggalStatus\n";
+            filteredDataList.forEach(item => {
+                output += `${item.status}\t${item.lama}\t${item.sellerKategori}\t${item.layanan}\t${item.kodeDC}\t${item.namaDC}\t${item.kodeToko}\t${item.namaToko}\t${item.asName}\t${item.amName}\t${item.awb}\t${item.tanggal}\n`;
+            });
+            const ta = document.createElement('textarea');
+            ta.value = output;
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                showToast(`✓ Berhasil menyalin ${filteredDataList.length} data ke Clipboard. Langsung Paste di Excel!`, 'success');
+            } catch(e) {
+                showToast('Gagal menyalin otomatis.', 'error');
+            }
+            document.body.removeChild(ta);
+        }
+
+        // ===== EXPORT EXCEL =====
+        function exportExcel() {
+            if (filteredDataList.length === 0) { showToast('Tidak ada data untuk di-download!', 'error'); return; }
+            const rows = filteredDataList.map(item => ({
+                Status: item.status, LamaDiToko: item.lama, SellerKategori: item.sellerKategori,
+                Layanan: item.layanan, KodeDC: item.kodeDC, NamaDC: item.namaDC,
+                KodeToko: item.kodeToko, NamaToko: item.namaToko,
+                AS: item.asName, AM: item.amName, AWB: item.awb, TanggalStatus: item.tanggal
+            }));
+            const ws = XLSX.utils.json_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Hasil Filter');
+            const tgl = new Date().toISOString().slice(0,10);
+            XLSX.writeFile(wb, `Indopaket_Filter_${tgl}.xlsx`);
+        }
+
+        // ===== TOAST =====
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.innerText = message;
+            toast.className = `mx-4 my-2 p-3 text-xs rounded border text-center font-semibold block`;
+            if (type === 'success') toast.classList.add('bg-green-50','text-green-800','border-green-200');
+            else toast.classList.add('bg-red-50','text-red-800','border-red-200');
+            clearTimeout(toast._timer);
+            toast._timer = setTimeout(() => toast.classList.add('hidden'), 4000);
+        }
+    </script>
+</body>
+</html>
